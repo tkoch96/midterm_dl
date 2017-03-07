@@ -39,11 +39,11 @@ num_instances = len(train_img)
 
 #batch it up
 size_batch = 50
-num_epochs = 200
+num_epochs = 500
 train_img = np.split(np.array(train_img),num_instances/size_batch)
 train_label = np.split(np.array(train_label),num_instances/size_batch)
 
-eta = .01
+eta = .001
 
 x_ = tf.placeholder(tf.float32, shape=(None,num_features))
 y_ = tf.placeholder(tf.float32, shape=(None,num_classes))
@@ -52,12 +52,12 @@ y_ = tf.placeholder(tf.float32, shape=(None,num_classes))
 
 #curros idea
 fc_plan = [
-	[3,3,1,4],
-	[7*7*4,10],
-	[4],
+	[1,1,1,3],
+	[7*7*3,10],
+	[3],
 	[10]
 ]
-param_count = 3*3*1*4+7*7*4*10+4+10
+param_count = 1*1*1*3 + 7*7*3*10 + 3 + 10
 params = tf.Variable(tf.random_normal(shape=[param_count], stddev=0.05))
 location = 0
 model_variables = []
@@ -77,7 +77,6 @@ tmp = tf.reshape(x_, shape=[-1,28, 28,1])
 #layer 1 
 tmp = tf.nn.conv2d(tmp,w1,strides=[1,4,4,1], padding='SAME')
 tmp = tf.nn.bias_add(tmp,b1)
-#tmp = tf.nn.max_pool(tmp,ksize=[1,2,2,1], strides=[1,2,2,1], padding='SAME')
 tmp = tf.nn.relu(tmp)
 #fully connected layer
 fc1 = tf.reshape(tmp, [-1, wd1.get_shape().as_list()[0]])
@@ -89,7 +88,7 @@ y_hat = fc1
 #l2 penalty
 l2_penalty = tf.reduce_sum(tf.get_collection('l2'))
 #Objective Function
-loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_hat, labels=y_)) #+ lambduh * l2_penalty
+loss = -tf.reduce_sum(y_ * tf.log(tf.nn.softmax(y_hat)))
 
 #Use gradient descent
 global_step = tf.Variable(0,trainable=False)
@@ -140,10 +139,12 @@ else: #calculate accuracy on test set
 	print([acc])
 
 w,v = LA.eig(h[0]) #w = evals, v = evects
-plt.hist(np.real(w))
+plt.hist(w)
 
 plt.savefig('plot.pdf', format='pdf', bbox_inches='tight')
-freq,val = np.histogram(np.real(w))
+freq,val = np.histogram(w)
 print("Freq:%s"%freq)
 print("Val:%s"%val)
+
 #no max pool gradient function
+#softmax gradient broke eventually for whatever reason
