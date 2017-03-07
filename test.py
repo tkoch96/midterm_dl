@@ -10,6 +10,10 @@ from numpy import linalg as LA
 import matplotlib
 import matplotlib.pyplot as plt
 
+#print the whole array
+np.set_printoptions(threshold=np.nan)
+
+
 test = 0
 num_classes = 10
 
@@ -39,7 +43,7 @@ num_instances = len(train_img)
 
 #batch it up
 size_batch = 50
-num_epochs = 200
+num_epochs = 1
 train_img = np.split(np.array(train_img),num_instances/size_batch)
 train_label = np.split(np.array(train_label),num_instances/size_batch)
 L = 5
@@ -158,7 +162,6 @@ def ent_sgd(x,L): #input is weights and number of iterations to do, L
 	return out
 
 model_variables = ent_sgd(model_variables,L)
-print(model_variables)
 # optimizer = tf.train.GradientDescentOptimizer(eta)
 # #Train it with respect to the model variables
 # train = optimizer.minimize(loss, global_step=global_step,var_list=model_variables)
@@ -174,6 +177,7 @@ sess.run(tf.global_variables_initializer())
 
 
 if test == 0: #train the model, evaluate performance on the validation set
+	val_accs = []
 	for _ in range(num_epochs):
 		for i in range(len(train_label)):
 			example = np.reshape(train_img[i],[-1,num_features])
@@ -183,13 +187,14 @@ if test == 0: #train the model, evaluate performance on the validation set
 			# 	sys.exit("got a nan")
 			_ = sess.run([model_variables],feed_dict={x_: example, y_:label})
 			print(i)
-	acc = 0
-	for i in range(len(val_label)):
-		example = np.reshape(val_img[i],[-1,num_features])
-		label = np.reshape(val_label[i],[-1,num_classes])
-		acc = acc + sess.run(accuracy, feed_dict={x_: example,y_: label})
-	acc = acc/len(val_label)
-	print([acc])
+		acc = 0
+		for i in range(len(val_label)):
+			example = np.reshape(val_img[i],[-1,num_features])
+			label = np.reshape(val_label[i],[-1,num_classes])
+			acc = acc + sess.run(accuracy, feed_dict={x_: example,y_: label})
+		acc = acc/len(val_label)
+		val_accs.append(acc)
+		print(val_accs)
 else: #calculate accuracy on test set
 	for _ in range(num_epochs):
 		for i in range(len(train_label)):
