@@ -48,13 +48,11 @@ num_epochs = 50
 train_img = np.split(np.array(train_img),num_instances/size_batch)
 train_label = np.split(np.array(train_label),num_instances/size_batch)
 
-eta = .005
-decay_rate = .1
-
 
 #hyperparams
-dropout_rate = float(sys.argv[1])
-lambduh = float(sys.argv[2])
+dropout_rate = .8
+lambduh = .01
+eta = .01
 
 
 
@@ -146,7 +144,7 @@ for _ in range(num_epochs):
 	for i in range(len(val_label)):
 		example = np.reshape(val_img[i],[1,num_features])
 		label = np.reshape(val_label[i],[1,num_classes])
-		acc += sess.run([accuracy], feed_dict={x_: example,y_: label})
+		acc = acc + (sess.run([accuracy], feed_dict={x_: example,y_: label}))[0]
 	acc = acc/len(val_label)
 	val_accs.append(acc)
 	print(val_accs)
