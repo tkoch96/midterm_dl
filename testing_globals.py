@@ -42,11 +42,11 @@ num_instances = len(train_img)
 
 
 #batch it up
-size_batch = 50
-num_epochs = 50
+size_batch = 200
+num_epochs = 1
 train_img = np.split(np.array(train_img),num_instances/size_batch)
 train_label = np.split(np.array(train_label),num_instances/size_batch)
-L = 5
+L = 1
 
 #hyperparams
 eta = .01
@@ -89,7 +89,6 @@ blast = model_variable([num_classes],'blast','bias')
 
 #function which calculates y_hat
 def convnn(ex):
-	model_variables = tf.get_collection('model_variables')
 	w1 = model_variables[0]
 	w2 = model_variables[1]
 	wd1 = model_variables[2]
@@ -115,7 +114,8 @@ def convnn(ex):
 	fc1 = tf.reshape(tmp, [-1, wd1.get_shape().as_list()[0]])
 	fc1 = tf.add(tf.matmul(fc1, wd1), bd1)
 	fc1 = tf.nn.relu(fc1)
-	#fc1 = tf.nn.dropout(fc1,dropout_rate)
+	fc1 = tf.nn.dropout(fc1,dropout_rate)
+
 	y_hat = tf.add(tf.matmul(fc1,wlast),blast)
 	return y_hat
 
@@ -128,39 +128,44 @@ def cust_loss(ex,why):
 	y_hat = convnn(ex)
 	loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_hat, labels=why)) + lambduh * l2_penalty
 	return loss
+#Use gradient descent
+#global_step = tf.Variable(0,trainable=False)
+#eta = tf.train.exponential_decay(eta,global_step,1000,decay_rate,staircase=True)
 
-#ENTROPY SGD
 def ent_sgd(x,L): #input is weights and number of iterations to do, L
 	num_weights = 8
+
 	x_prime = x
 	mu = x
 	size_sub_mini_batch = size_batch / 10;
-
-	for _ in range(L):
+	for l in range(L):
 		ind = np.random.randint(size_batch,size=int(size_sub_mini_batch))
 		sub_mini_batch_x = tf.gather(x_,ind)
 		sub_mini_batch_y = tf.gather(y_,ind)
 		s = [None] * num_weights
 		out = [None] * num_weights
-		for i in range(num_weights): #to hold the weights
+		for i in range(num_weights):
 			s[i] = tf.zeros(x[i].get_shape())
-		for i in range(int(size_sub_mini_batch)): #for each sample in the sampled minibatch
-			tmpx = tf.gather(sub_mini_batch_x,[i]) 
-			tmpy = tf.gather(sub_mini_batch_y,[i]) 
-			for j in range(num_weights): #get gradient for each weight
+		for i in range(int(size_sub_mini_batch)):
+			for j in range(num_weights):
+				tmpx = tf.gather(sub_mini_batch_x,[i])
+				tmpy = tf.gather(sub_mini_batch_y,[i])
 				s[j] += tf.gradients([cust_loss(tmpx,tmpy)],x_prime[j])[0]
 				s[j] -= scope * (x[j] - x_prime[j])
 		dx_prime = [None] * num_weights
+		curr_weights = tf.get_collection('model_variables')
 		for i in range(num_weights):
 			dx_prime[i] = s[i] / size_sub_mini_batch
 			x_prime[i] = x_prime[i] - eta_prime * dx_prime[i] + tf.sqrt(eta_prime) * epsilon_noise * tf.random_normal(x_prime[i].get_shape())
 			mu[i] = (1 - alpha) * mu[i] + alpha * x_prime[i]
-	for i in range(num_weights):
-		out[i] = x[i] - eta * scope * (x[i] - mu[i])
-		tf.assign(curr_weights[i],out[i])
+			out[i] = x[i] - eta * scope * (x[i] - mu[i])
+			tf.assign(curr_weights[i],out[i])
 	return out
 
 mv = ent_sgd(tf.get_collection('model_variables'),L)
+# optimizer = tf.train.GradientDescentOptimizer(eta)
+# #Train it with respect to the model variables
+# train = optimizer.minimize(loss, global_step=global_step,var_list=model_variables)
 
 #accuracy calc functions
 y_guess_val = convnn(x_)
