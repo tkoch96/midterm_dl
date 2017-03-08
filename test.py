@@ -42,20 +42,23 @@ num_instances = len(train_img)
 
 
 #batch it up
-size_batch = 50
+size_batch = 200
 num_epochs = 50
 train_img = np.split(np.array(train_img),num_instances/size_batch)
 train_label = np.split(np.array(train_label),num_instances/size_batch)
-L = 5
+
+
+
 
 #hyperparams
-eta = .01
+eta = .001
 scope = .001
-eta_prime = .01
+eta_prime = .5
 lambduh = .01
-dropout_rate = .8
-epsilon_noise = .0001
+dropout_rate = .2
+epsilon_noise = .001
 alpha = .75
+L = 9
 
 #function which creates parameter objects
 def model_variable(shape, name,type='weight',stddev=.0001):
@@ -89,7 +92,6 @@ blast = model_variable([num_classes],'blast','bias')
 
 #function which calculates y_hat
 def convnn(ex):
-	model_variables = tf.get_collection('model_variables')
 	w1 = model_variables[0]
 	w2 = model_variables[1]
 	wd1 = model_variables[2]
@@ -115,12 +117,12 @@ def convnn(ex):
 	fc1 = tf.reshape(tmp, [-1, wd1.get_shape().as_list()[0]])
 	fc1 = tf.add(tf.matmul(fc1, wd1), bd1)
 	fc1 = tf.nn.relu(fc1)
-	#fc1 = tf.nn.dropout(fc1,dropout_rate)
+	fc1 = tf.nn.dropout(fc1,dropout_rate)
 	y_hat = tf.add(tf.matmul(fc1,wlast),blast)
 	return y_hat
-
-#variables to optimize over
 model_variables = tf.get_collection('model_variables')
+
+
 #l2 penalty
 l2_penalty = tf.reduce_sum(tf.get_collection('l2'))
 #Objective Function
@@ -155,15 +157,17 @@ def ent_sgd(x,L): #input is weights and number of iterations to do, L
 			dx_prime[i] = s[i] / size_sub_mini_batch
 			x_prime[i] = x_prime[i] - eta_prime * dx_prime[i] + tf.sqrt(eta_prime) * epsilon_noise * tf.random_normal(x_prime[i].get_shape())
 			mu[i] = (1 - alpha) * mu[i] + alpha * x_prime[i]
+	curr_weights = tf.get_collection('model_variables')
 	for i in range(num_weights):
 		out[i] = x[i] - eta * scope * (x[i] - mu[i])
 		tf.assign(curr_weights[i],out[i])
 	return out
 
-mv = ent_sgd(tf.get_collection('model_variables'),L)
+model_variables = tf.get_collection('model_variables')
+mv = ent_sgd(model_variables,L)
 
 #accuracy calc functions
-y_guess_val = convnn(x_)
+y_guess_val = convnn(x_) 
 correct_pred = tf.equal(tf.argmax(y_guess_val, 1), tf.argmax(y_, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
@@ -181,11 +185,15 @@ if test == 0: #train the model, evaluate performance on the validation set
 			_ = sess.run([mv],feed_dict={x_: example, y_:label})
 			print(i)
 		acc = 0
-		for i in range(len(val_label)):
-			example = np.reshape(val_img[i],[1,num_features])
-			label = np.reshape(val_label[i],[1,num_classes])
+		# for i in range(len(val_label)):
+		# 	example = np.reshape(val_img[i],[1,num_features])
+		# 	label = np.reshape(val_label[i],[1,num_classes])
+		# 	acc = acc + sess.run(accuracy, feed_dict={x_: example,y_: label})
+		for i in range(len(train_label)): #val error not working, get train error
+			example = np.reshape(train_img[i],[size_batch,num_features])
+			label = np.reshape(train_label[i],[size_batch,num_classes])
 			acc = acc + sess.run(accuracy, feed_dict={x_: example,y_: label})
-		acc = acc/len(val_label)
+		acc = acc/len(train_label)
 		val_accs.append(acc)
 		print(val_accs)
 	np.save('val_accs.out',val_accs)
