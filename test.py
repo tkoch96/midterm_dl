@@ -51,14 +51,14 @@ train_label = np.split(np.array(train_label),num_instances/size_batch)
 
 
 #hyperparams
-eta = .001
-scope = .8
-eta_prime = .5
+eta = 1.0
+scope = .0001
+eta_prime = .1
 lambduh = .001
-dropout_rate = 1
+dropout_rate = .85
 epsilon_noise = .001
-alpha = .2
-L = 4
+alpha = .75
+L = 20
 
 
 
@@ -119,7 +119,7 @@ def convnn(ex):
 	fc1 = tf.reshape(tmp, [-1, wd1.get_shape().as_list()[0]])
 	fc1 = tf.add(tf.matmul(fc1, wd1), bd1)
 	fc1 = tf.nn.relu(fc1)
-	#fc1 = tf.nn.dropout(fc1,dropout_rate)
+	fc1 = tf.nn.dropout(fc1,dropout_rate)
 	y_hat = tf.add(tf.matmul(fc1,wlast),blast)
 	return y_hat
 
@@ -186,11 +186,14 @@ sess.run(tf.global_variables_initializer())
 
 
 val_accs = []
-for _ in range(num_epochs):
+for ne in range(num_epochs):
+	if(ne>2):
+		eta = .1
 	for i in range(len(train_label)):
 		example = np.reshape(train_img[i],[size_batch,num_features])
 		label = np.reshape(train_label[i],[size_batch,num_classes])
 		blah, l,tmp = sess.run([model_variables,loss, uw],feed_dict={x_: example, y_:label})
+		scope = scope * 1.001
 		print(l)
 		print((blah[0])[3]) 
 		print((tmp[0])[3])
