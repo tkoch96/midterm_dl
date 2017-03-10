@@ -65,7 +65,7 @@ num_weights = 8
 
 
 #function which creates parameter objects
-def model_variable(shape, name,type='weight',stddev=.1):
+def model_variable(shape, name,type='weight',stddev=.01):
 	if type == 'bias':
 		variable = tf.get_variable(name=name,
 									dtype=tf.float32,
@@ -226,8 +226,8 @@ for _ in range(num_epochs):
 			const_wlast : current_x[6],
 			const_blast : current_x[7]
 		})
+		current_x = current_x[0]
 		for j in range(L):
-			current_x = current_x[0]
 			ind = np.random.choice(size_batch,size=int(size_sub_mini_batch))
 
 			sub_mini_batch_x = np.reshape(batch_example[ind],[size_sub_mini_batch,num_features])
@@ -245,7 +245,9 @@ for _ in range(num_epochs):
 				const_blast : current_x[7]
 			})
 			print(l)
-			current_x = sess.run([new_const_x], feed_dict={
+			
+			
+		current_x = sess.run([new_const_x], feed_dict={
 				const_w1 : current_x[0],
 				const_w2 : current_x[1],
 				const_wd1 : current_x[2],
@@ -255,12 +257,14 @@ for _ in range(num_epochs):
 				const_wlast : current_x[6],
 				const_blast : current_x[7]
 			})
-			scope = scope * 1.001
+		scope = scope * 1.001
 	acc = 0
 	for i in range(len(val_label)):
 		example = np.reshape(val_img[i],[1,num_features])
 		label = np.reshape(val_label[i],[1,num_classes])
-		_,acc = acc + (sess.run([model_variables,accuracy], feed_dict={x_: example,y_: label}))[0]
+		out = sess.run([model_variables,accuracy], feed_dict={x_: example,y_: label})
+		print(out)
+		acc += out[0][1]
 	# for i in range(len(train_label)): #val error not working, get train error
 	# 	example = np.reshape(train_img[i],[size_batch,num_features])
 	# 	label = np.reshape(train_label[i],[size_batch,num_classes])
