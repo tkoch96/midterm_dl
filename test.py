@@ -42,8 +42,8 @@ num_instances = len(train_img)
 
 
 #batch it up
-size_batch = 200
-num_epochs = 50
+size_batch = 50
+num_epochs = 6
 train_img = np.split(np.array(train_img),num_instances/size_batch)
 train_label = np.split(np.array(train_label),num_instances/size_batch)
 
@@ -54,7 +54,6 @@ train_label = np.split(np.array(train_label),num_instances/size_batch)
 eta = 1.0
 scope = .0001
 eta_prime = .1
-lambduh = .001
 dropout_rate = .85
 epsilon_noise = .001
 alpha = .75
@@ -74,9 +73,7 @@ def model_variable(shape, name,type='weight',stddev=.01):
 	else:
 		variable = tf.get_variable(name=name,
                                dtype=tf.float32,
-                               shape=shape,
-                               initializer=tf.random_normal_initializer(stddev=stddev))
-		tf.add_to_collection('l2', tf.reduce_sum(tf.pow(variable,2)))
+                               initializer=tf.zeros(shape=shape))
 	tf.add_to_collection('model_variables', variable)
 	
 	return variable
@@ -153,16 +150,16 @@ l2_penalty = tf.reduce_sum(tf.get_collection('l2'))
 #Objective Function
 def cust_loss(ex,why):
 	y_hat = convnn(ex)
-	loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_hat, labels=why)) + lambduh * l2_penalty
+	loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_hat, labels=why)) #+ lambduh * l2_penalty
 	return loss
 
-def update_const_x(curr_const_x,mus):
+def update_const_x(curr_const_x,mus): #last line of the algo
 	new_const_x = []
 	for i in range(len(curr_const_x)):
 		new_const_x.append(curr_const_x[i] - eta * scope * (curr_const_x[i] - mus[i]))
 	return new_const_x
 
-def init_assign(ccx,mvs,mews):
+def init_assign(ccx,mvs,mews): #first line of the algo
 	for i in range(len(ccx)):
 		tf.assign(mvs[i],ccx[i])
 		tf.assign(mews[i],ccx[i])
@@ -170,7 +167,7 @@ def init_assign(ccx,mvs,mews):
 
 #ENTROPY SGD
 def ent_sgd(const_x,weights_x,mus,l):
-#const_x is saved over lang iterations (x), weights x is updated (x_prime)
+#const_x is saved over lang iterations (x), weights x is updated (x_prime), mus is updated (mu)
 	
 	updates = []
 	grads = tf.gradients(l, weights_x)
@@ -214,9 +211,10 @@ for _ in range(num_epochs):
 		#batch
 		batch_example = np.reshape(train_img[i],[size_batch,num_features])
 		batch_label = np.reshape(train_label[i],[size_batch,num_classes])
-		current_x = sess.run([model_variables])
+		if i == 0: #store these for the first iteration
+			current_x = sess.run([model_variables])
 		current_x = current_x[0]
-		current_x = sess.run([assign_mu_x_p],feed_dict={
+		_,current_x = sess.run([model_variables,assign_mu_x_p],feed_dict={ #first line of algo
 			const_w1 : current_x[0],
 			const_w2 : current_x[1],
 			const_wd1 : current_x[2],
@@ -226,13 +224,12 @@ for _ in range(num_epochs):
 			const_wlast : current_x[6],
 			const_blast : current_x[7]
 		})
-		current_x = current_x[0]
 		for j in range(L):
 			ind = np.random.choice(size_batch,size=int(size_sub_mini_batch))
 
 			sub_mini_batch_x = np.reshape(batch_example[ind],[size_sub_mini_batch,num_features])
 			sub_mini_batch_y = np.reshape(batch_label[ind],[size_sub_mini_batch,num_classes])
-			c_w,l,_ = sess.run([model_variables,loss,e_sgd_iter],feed_dict={
+			c_w,l,_ = sess.run([model_variables,loss,e_sgd_iter],feed_dict={ #inner loop
 				x_ : sub_mini_batch_x,
 				y_ : sub_mini_batch_y,
 				const_w1 : current_x[0],
@@ -244,10 +241,7 @@ for _ in range(num_epochs):
 				const_wlast : current_x[6],
 				const_blast : current_x[7]
 			})
-			print(l)
-			
-			
-		current_x = sess.run([new_const_x], feed_dict={
+		current_x = sess.run([new_const_x], feed_dict={ #last line of algo
 				const_w1 : current_x[0],
 				const_w2 : current_x[1],
 				const_wd1 : current_x[2],
@@ -263,14 +257,9 @@ for _ in range(num_epochs):
 		example = np.reshape(val_img[i],[1,num_features])
 		label = np.reshape(val_label[i],[1,num_classes])
 		out = sess.run([model_variables,accuracy], feed_dict={x_: example,y_: label})
-		print(out)
-		acc += out[0][1]
-	# for i in range(len(train_label)): #val error not working, get train error
-	# 	example = np.reshape(train_img[i],[size_batch,num_features])
-	# 	label = np.reshape(train_label[i],[size_batch,num_classes])
-	# 	acc = acc + sess.run(accuracy, feed_dict={x_: example,y_: label})
+		acc += out[1]
 	# acc = acc/len(train_label)
 	acc = acc/len(val_label)
 	val_accs.append(acc)
 	print(val_accs)
-np.save('val_accs.out',val_accs)
+np.save('val_accs_ent_sgd.out',val_accs)

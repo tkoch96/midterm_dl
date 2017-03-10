@@ -1,4 +1,6 @@
 #
+# MNIST Classification with batch norm for comparison with ent sgd
+# Taken from https://gist.github.com/tomokishii/0ce3bdac1588b5cca9fa5fbdf6e1c412
 #  mnist_cnn_bn.py   date. 5/21/2016
 #
 
@@ -119,9 +121,8 @@ def inference(x, y_, keep_prob, phase_train):
     
     y_pred = ReadOutLayer(fc1_dropped, 1024, 10).output()
     
-    cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y_pred), 
-                                    reduction_indices=[1]))
-    loss = cross_entropy
+
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_pred, labels=y_))
     train_step = training(loss, 1.e-4)
     accuracy = evaluation(y_pred, y_)
     
