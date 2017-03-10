@@ -52,12 +52,12 @@ y_ = tf.placeholder(tf.float32, shape=(None,num_classes))
 
 #curros idea
 fc_plan = [
-	[1,1,1,3],
-	[7*7*3,10],
-	[3],
+	[1,1,1,4],
+	[7*7*4,10],
+	[4],
 	[10]
 ]
-param_count = 1*1*1*3 + 7*7*3*10 + 3 + 10
+param_count = 1*1*1*4 + 7*7*4*10 + 4 + 10
 params = tf.Variable(tf.random_normal(shape=[param_count], stddev=0.05))
 location = 0
 model_variables = []
@@ -85,8 +85,6 @@ fc1 = tf.nn.relu(fc1)
 #fc1 = tf.nn.dropout(fc1,dropout_rate)
 y_hat = fc1
 
-#l2 penalty
-l2_penalty = tf.reduce_sum(tf.get_collection('l2'))
 #Objective Function
 loss = -tf.reduce_sum(y_ * tf.log(tf.nn.softmax(y_hat)))
 
@@ -105,38 +103,26 @@ sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 
 
-if test == 0: #train the model, evaluate performance on the validation set
-	for _ in range(num_epochs):
-		for i in range(len(train_label)):
-			example = np.reshape(train_img[i],[-1,num_features])
-			label = np.reshape(train_label[i],[-1,num_classes])
-			l , _ = sess.run([loss, train], feed_dict={x_ : example, y_ : label})
-			if math.isnan(l):
-				sys.exit("got a nan")
-	acc = 0
-	for i in range(len(val_label)):
-		example = np.reshape(val_img[i],[-1,num_features])
-		label = np.reshape(val_label[i],[-1,num_classes])
-		acc = acc + sess.run(accuracy, feed_dict={x_: example,y_: label})
-	acc = acc/len(val_label)
-	print([acc])
-	example = np.reshape(val_img[25],[-1,num_features])
-	label = np.reshape(val_label[25],[-1,num_classes])
-	h = sess.run(hessian, feed_dict={x_: example, y_: label})
-	np.save('test.out', h)
-else: #calculate accuracy on test set
-	for _ in range(num_epochs):
-		for i in range(len(train_label)):
-			example = np.reshape(train_img[i],[-1,num_features])
-			label = np.reshape(train_label[i],[-1,num_classes])
-			l , _ = sess.run([loss, train], feed_dict={x_ : example, y_ : label})
-		acc = 0
-	for i in range(len(test_label)):
-		example = np.reshape(test_img[i],[-1,num_features])
-		label = np.reshape(test_label[i],[-1,num_classes])
-		acc = acc + sess.run(accuracy, feed_dict={x_: example,y_: label})
-	acc = acc/len(test_label)
-	print([acc])
+
+for _ in range(num_epochs):
+	for i in range(len(train_label)):
+		example = np.reshape(train_img[i],[-1,num_features])
+		label = np.reshape(train_label[i],[-1,num_classes])
+		l , _ = sess.run([loss, train], feed_dict={x_ : example, y_ : label})
+		if math.isnan(l):
+			sys.exit("got a nan")
+acc = 0
+for i in range(len(val_label)):
+	example = np.reshape(val_img[i],[-1,num_features])
+	label = np.reshape(val_label[i],[-1,num_classes])
+	acc = acc + sess.run(accuracy, feed_dict={x_: example,y_: label})
+acc = acc/len(val_label)
+print([acc])
+example = np.reshape(train_img[0],[-1,num_features])
+label = np.reshape(train_label[0],[-1,num_classes])
+_,h = sess.run([loss,hessian], feed_dict={x_: example, y_: label})
+np.save('test.out', h)
+
 
 w,v = LA.eig(h[0]) #w = evals, v = evects
 plt.hist(w)
