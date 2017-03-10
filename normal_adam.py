@@ -44,7 +44,7 @@ num_instances = len(train_img)
 
 #batch it up
 size_batch = 200
-num_epochs = 50
+num_epochs = 200
 train_img = np.split(np.array(train_img),num_instances/size_batch)
 train_label = np.split(np.array(train_label),num_instances/size_batch)
 
@@ -52,7 +52,7 @@ train_label = np.split(np.array(train_label),num_instances/size_batch)
 #hyperparams
 dropout_rate = .8
 lambduh = .01
-eta = .01
+eta = .001
 
 
 

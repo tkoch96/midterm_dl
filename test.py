@@ -11,7 +11,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 #print the whole array
-np.set_printoptions(threshold=np.nan)
+#np.set_printoptions(threshold=np.nan)
 
 
 test = 0
@@ -51,19 +51,21 @@ train_label = np.split(np.array(train_label),num_instances/size_batch)
 
 
 #hyperparams
-eta = .001
-scope = .8
-eta_prime = .5
+eta = 1.0
+scope = .0001
+eta_prime = .1
 lambduh = .001
-dropout_rate = 1
+dropout_rate = .85
 epsilon_noise = .001
-alpha = .2
-L = 4
+alpha = .75
+L = 20
+size_sub_mini_batch = int(size_batch / 5)
+num_weights = 8
 
 
 
 #function which creates parameter objects
-def model_variable(shape, name,type='weight',stddev=.01):
+def model_variable(shape, name,type='weight',stddev=.1):
 	if type == 'bias':
 		variable = tf.get_variable(name=name,
 									dtype=tf.float32,
@@ -79,30 +81,52 @@ def model_variable(shape, name,type='weight',stddev=.01):
 	
 	return variable
 
+fc_plan = [
+	[5,5,1,32],
+	[5,5,32,64],
+	[3136,1024], #3136 = 7*7*64
+	[32],
+	[64],
+	[1024],
+	[1024,num_classes],
+	[num_classes]
+]
+
 x_ = tf.placeholder(tf.float32, shape=(None,num_features))
 y_ = tf.placeholder(tf.float32, shape=(None,num_classes))
 
+const_w1 = tf.placeholder(tf.float32, shape=fc_plan[0])
+const_w2 =  tf.placeholder(tf.float32, shape=fc_plan[1])
+const_wd1 = tf.placeholder(tf.float32, shape=fc_plan[2])
+const_b1 = tf.placeholder(tf.float32, shape=fc_plan[3])
+const_b2 = tf.placeholder(tf.float32, shape=fc_plan[4])
+const_bd1 = tf.placeholder(tf.float32, shape=fc_plan[5])
+const_wlast = tf.placeholder(tf.float32, shape=fc_plan[6])
+const_blast = tf.placeholder(tf.float32, shape=fc_plan[7])
+const_x = [const_w1, const_w2, const_wd1, const_b1, const_b2, const_bd1, const_wlast, const_blast]
+
+
+
 #weights
-w1 = model_variable([5,5,1,32],'w1')
-w2 = model_variable([5,5,32,64],'w2')
-wd1 = model_variable([7*7*64,1024],'wd1')
-b1 = model_variable([32],'b1','bias')
-b2 = model_variable([64],'b2','bias')
-bd1 = model_variable([1024],'bd1','bias')
-wlast = model_variable([1024,num_classes],'wlast')
-blast = model_variable([num_classes],'blast','bias')
+w1 = model_variable(fc_plan[0],'w1')
+w2 = model_variable(fc_plan[1],'w2')
+wd1 = model_variable(fc_plan[2],'wd1')
+b1 = model_variable(fc_plan[3],'b1','bias')
+b2 = model_variable(fc_plan[4],'b2','bias')
+bd1 = model_variable(fc_plan[5],'bd1','bias')
+wlast = model_variable(fc_plan[6],'wlast')
+blast = model_variable(fc_plan[7],'blast','bias')
 model_variables = tf.get_collection('model_variables')
+
+#Mu's
+for i in range(num_weights):
+	name = "mu_" + str(i)
+	tmp = tf.get_variable(name=name,dtype=tf.float32,shape=fc_plan[i],initializer=tf.random_normal_initializer(stddev=.01))
+	tf.add_to_collection('mus',tmp)
+mus = tf.get_collection('mus')
 
 #function which calculates y_hat
 def convnn(ex):
-	w1 = model_variables[0]
-	w2 = model_variables[1]
-	wd1 = model_variables[2]
-	b1 = model_variables[3]
-	b2 = model_variables[4]
-	bd1 = model_variables[5]
-	wlast = model_variables[6]
-	blast = model_variables[7]
 	input_ = tf.reshape(ex, shape=[-1,28, 28,1])
 
 	#layer 1 
@@ -119,7 +143,7 @@ def convnn(ex):
 	fc1 = tf.reshape(tmp, [-1, wd1.get_shape().as_list()[0]])
 	fc1 = tf.add(tf.matmul(fc1, wd1), bd1)
 	fc1 = tf.nn.relu(fc1)
-	#fc1 = tf.nn.dropout(fc1,dropout_rate)
+	fc1 = tf.nn.dropout(fc1,dropout_rate)
 	y_hat = tf.add(tf.matmul(fc1,wlast),blast)
 	return y_hat
 
@@ -132,47 +156,44 @@ def cust_loss(ex,why):
 	loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y_hat, labels=why)) + lambduh * l2_penalty
 	return loss
 
-def update_weights(new_vars):
-	curr_vars = tf.get_collection('model_variables')
-	for i in range(len(new_vars)):
-		tf.assign(curr_vars[i],new_vars[i])
-	return new_vars
-#ENTROPY SGD
-def ent_sgd(x): #input is weights and number of iterations to do, L
-	num_weights = 8
-	x_prime = x
-	mu = x
-	size_sub_mini_batch = size_batch / 5;
+def update_const_x(curr_const_x,mus):
+	new_const_x = []
+	for i in range(len(curr_const_x)):
+		new_const_x.append(curr_const_x[i] - eta * scope * (curr_const_x[i] - mus[i]))
+	return new_const_x
 
-	for _ in range(L):
-		ind = np.random.choice(size_batch,size=int(size_sub_mini_batch))
-		sub_mini_batch_x = tf.gather(x_,ind)
-		sub_mini_batch_y = tf.gather(y_,ind)
-		s = [None] * num_weights
-		out = [None] * num_weights
-		for i in range(num_weights): #to hold the weights
-			s[i] = tf.zeros(x[i].get_shape())
-		for i in range(int(size_sub_mini_batch)): #for each sample in the sampled minibatch
-			tmpx = tf.gather(sub_mini_batch_x,[i]) 
-			tmpy = tf.gather(sub_mini_batch_y,[i]) 
-			for j in range(num_weights): #get gradient for each weight
-				loss_func = cust_loss(tmpx,tmpy)
-				s[j] = tf.add(s[j],tf.gradients([loss_func],x_prime[j])[0])
-				s[j] = tf.subtract(s[j],tf.multiply(scope,tf.subtract(x[j],x_prime[j])))
-		dx_prime = [None] * num_weights
-		for i in range(num_weights):
-			dx_prime[i] = tf.divide(s[i],size_sub_mini_batch)
-			x_prime[i] = tf.add(tf.subtract(x_prime[i], tf.multiply(eta_prime, dx_prime[i])), tf.multiply(tf.multiply(tf.sqrt(eta_prime),epsilon_noise), tf.random_normal(x_prime[i].get_shape())))
-			mu[i] = tf.add(tf.multiply((1 - alpha), mu[i]), tf.multiply(alpha, x_prime[i]))
-	for i in range(num_weights):
-		out[i] = tf.subtract(x[i], tf.multiply(eta * scope,tf.subtract(x[i], mu[i])))
-	return out
+def init_assign(ccx,mvs,mews):
+	for i in range(len(ccx)):
+		tf.assign(mvs[i],ccx[i])
+		tf.assign(mews[i],ccx[i])
+	return ccx
+
+#ENTROPY SGD
+def ent_sgd(const_x,weights_x,mus,l):
+#const_x is saved over lang iterations (x), weights x is updated (x_prime)
+	
+	updates = []
+	grads = tf.gradients(l, weights_x)
+
+	i = 0
+	for mu,x_prime, grad in zip(mus,weights_x,grads):	
+		dx_prime = (grad - scope * (const_x[i] - x_prime)) / size_sub_mini_batch
+		x_p_t = x_prime - eta_prime * dx_prime + tf.sqrt(eta_prime) * epsilon_noise * tf.random_normal(shape=x_prime.get_shape())
+		mu_t = (1-alpha) * mu + alpha * x_p_t
+		
+		i += 1
+		
+		updates.append(x_prime.assign(x_p_t))
+		updates.append(mu.assign(mu_t))
+	return tf.group(*updates)
 
 
 #funcs to call
 loss = cust_loss(x_,y_)
-mv = ent_sgd(model_variables)
-uw = update_weights(mv)
+e_sgd_iter = ent_sgd(const_x,model_variables,mus,loss)
+new_const_x = update_const_x(const_x,mus)
+
+assign_mu_x_p = init_assign([const_w1, const_w2, const_wd1, const_b1, const_b2, const_bd1, const_wlast, const_blast],model_variables,mus)
 
 #accuracy calc functions
 y_guess_val = convnn(x_) 
@@ -188,17 +209,58 @@ sess.run(tf.global_variables_initializer())
 val_accs = []
 for _ in range(num_epochs):
 	for i in range(len(train_label)):
-		example = np.reshape(train_img[i],[size_batch,num_features])
-		label = np.reshape(train_label[i],[size_batch,num_classes])
-		blah, l,tmp = sess.run([model_variables,loss, uw],feed_dict={x_: example, y_:label})
-		print(l)
-		print((blah[0])[3]) 
-		print((tmp[0])[3])
+		if i > 2:
+			eta = .1
+		#batch
+		batch_example = np.reshape(train_img[i],[size_batch,num_features])
+		batch_label = np.reshape(train_label[i],[size_batch,num_classes])
+		current_x = sess.run([model_variables])
+		current_x = current_x[0]
+		current_x = sess.run([assign_mu_x_p],feed_dict={
+			const_w1 : current_x[0],
+			const_w2 : current_x[1],
+			const_wd1 : current_x[2],
+			const_b1 : current_x[3],
+			const_b2 : current_x[4],
+			const_bd1 : current_x[5],
+			const_wlast : current_x[6],
+			const_blast : current_x[7]
+		})
+		for j in range(L):
+			current_x = current_x[0]
+			ind = np.random.choice(size_batch,size=int(size_sub_mini_batch))
+
+			sub_mini_batch_x = np.reshape(batch_example[ind],[size_sub_mini_batch,num_features])
+			sub_mini_batch_y = np.reshape(batch_label[ind],[size_sub_mini_batch,num_classes])
+			c_w,l,_ = sess.run([model_variables,loss,e_sgd_iter],feed_dict={
+				x_ : sub_mini_batch_x,
+				y_ : sub_mini_batch_y,
+				const_w1 : current_x[0],
+				const_w2 : current_x[1],
+				const_wd1 : current_x[2],
+				const_b1 : current_x[3],
+				const_b2 : current_x[4],
+				const_bd1 : current_x[5],
+				const_wlast : current_x[6],
+				const_blast : current_x[7]
+			})
+			print(l)
+			current_x = sess.run([new_const_x], feed_dict={
+				const_w1 : current_x[0],
+				const_w2 : current_x[1],
+				const_wd1 : current_x[2],
+				const_b1 : current_x[3],
+				const_b2 : current_x[4],
+				const_bd1 : current_x[5],
+				const_wlast : current_x[6],
+				const_blast : current_x[7]
+			})
+			scope = scope * 1.001
 	acc = 0
 	for i in range(len(val_label)):
 		example = np.reshape(val_img[i],[1,num_features])
 		label = np.reshape(val_label[i],[1,num_classes])
-		_,acc = acc + sess.run([model_variables,accuracy], feed_dict={x_: example,y_: label})
+		_,acc = acc + (sess.run([model_variables,accuracy], feed_dict={x_: example,y_: label}))[0]
 	# for i in range(len(train_label)): #val error not working, get train error
 	# 	example = np.reshape(train_img[i],[size_batch,num_features])
 	# 	label = np.reshape(train_label[i],[size_batch,num_classes])
