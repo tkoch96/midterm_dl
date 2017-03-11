@@ -179,8 +179,8 @@ if __name__ == '__main__':
                 batch_xs, batch_ys = mnist.train.next_batch(100)
                 train_step.run({x: batch_xs, y_: batch_ys, keep_prob: 0.5,
                       phase_train: True})
-                if i % 1000 == 0:
-                    cv_fd = {x: batch_xs, y_: batch_ys, keep_prob: 1.0, 
+                if i % 100 == 0:
+                    cv_fd = {x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0, 
                                                    phase_train: False}
                     train_loss = loss.eval(cv_fd)
                     train_accuracy = accuracy.eval(cv_fd)
@@ -188,17 +188,4 @@ if __name__ == '__main__':
                     print('  step, loss, accurary = %6d: %8.4f, %8.4f' % (i, 
                         train_loss, train_accuracy))
 
-        # Test trained model
-        test_fd = {x: mnist.test.images, y_: mnist.test.labels, 
-                keep_prob: 1.0, phase_train: False}
-        print(' accuracy = %8.4f' % accuracy.eval(test_fd))
-        # Multiclass Log Loss
-        pred = y_pred.eval(test_fd)
-        act = mnist.test.labels
-        print(' multiclass logloss = %8.4f' % mlogloss(pred, act))
-    
-        # Save the variables to disk.
-        if TASK == 'train':
-            save_path = saver.save(sess, chkpt_file)
-            print("Model saved in file: %s" % save_path)
     
