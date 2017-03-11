@@ -42,7 +42,7 @@ num_instances = len(train_img)
 
 
 #batch it up
-size_batch = 50
+size_batch = 20
 num_epochs = 6
 train_img = np.split(np.array(train_img),num_instances/size_batch)
 train_label = np.split(np.array(train_label),num_instances/size_batch)

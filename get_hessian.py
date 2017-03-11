@@ -124,13 +124,14 @@ _,h = sess.run([loss,hessian], feed_dict={x_: example, y_: label})
 np.save('test.out', h)
 
 
-w,v = LA.eig(h[0]) #w = evals, v = evects
-plt.hist(w)
+w,v = LA.eig(h) #w = evals, v = evects
+plt.hist(np.real(w))
+plt.xlabel('Eigenvalue')
+plt.ylabel('Frequency')
+plt.title('Histogram of Eigenvalues of Hessian Matrix of the Loss Function')
 
-plt.savefig('plot.pdf', format='pdf', bbox_inches='tight')
-freq,val = np.histogram(w)
-print("Freq:%s"%freq)
-print("Val:%s"%val)
+plt.savefig('hessian_plot.pdf', format='pdf', bbox_inches='tight')
 
 #no max pool gradient function
 #softmax gradient broke eventually for whatever reason
+
